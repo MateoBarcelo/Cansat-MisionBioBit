@@ -2,7 +2,12 @@
 from asyncio.windows_events import NULL
 from dataclasses import asdict
 from datetime import datetime
+from functools import partial
+from genericpath import exists
+import os
 from pathlib import Path
+from ssl import VERIFY_CRL_CHECK_CHAIN
+import sys
 import threading
 import time
 import tkinter
@@ -14,30 +19,51 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from PIL import Image, ImageTk
 import mplcyberpunk
+import serial.tools.list_ports
+import bandprocessing
+from vegcalculation import VegetationCalculation
 # from tkinter import *
 # Explicit imports to satisfy Flake8
-from tkinter import Label, Tk, Canvas, Entry, Text, Button, PhotoImage, Toplevel
+from tkinter import DISABLED, Label, StringVar, Tk, ttk, Canvas, Entry, Text, Button, PhotoImage, Toplevel
 
 from ee2 import EEProcess
 
+import imagegui
+global ser
+try:
+    ser = serial.Serial('COM5', 9600, timeout=1)
+except:
+    ser = NULL
 
-OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path("build/assets")
+#VARIABLES GLOBALES
+global pressure,temperature,co,met,altitud,latitud,longitud,isNotPlotted, grafico3, isLabelOn
 
-
-def relative_to_assets(path: str) -> Path:
-    return ASSETS_PATH / Path(path)
-
-
-ser = serial.Serial('COM5', 9600, timeout=1)
-
-global pressure,temperature,co,met,altitud,latitud,longitud
-
+#INCIALIZACION DE VARIABLES BASICAS 
 pressure = "0"
 temperature = "0"
 co = "0"
 met = "0"
 altitud = "0"
+
+#VARIABLES DE TIEMPO Y VALORES EN VENTANA GRAPHS
+tiemp = []
+y1 = []
+y2 = []
+y3 = []
+y4 = []
+
+#VARIABLES GRAFICO EMBED EN VENTANA PRINCIPAL
+isNotPlotted = True
+isLabelOn = False
+grafico3 = NULL
+
+#DIRECTORIO PARA ACCEDER A LOS ASSETS
+OUTPUT_PATH = Path(__file__).parent
+ASSETS_PATH = OUTPUT_PATH / Path("build/assets")
+
+def relative_to_assets(path: str) -> Path:
+    return ASSETS_PATH / Path(path)
+
 
 class ReadSerial(threading.Thread):
     loop = True
@@ -47,37 +73,44 @@ class ReadSerial(threading.Thread):
         self.start()
         self.loop = True
 
-    def callback(self):
+    def stop(self):
         self.loop = False
-
+        sys.exit()
+        
     def run(self):
         # Read and record the data
         while (self.loop):
             if True:
                 
-                data1=ser.readline().strip().decode("utf-8") #Array de valores
+                try:
+                    data1=ser.readline().strip().decode("utf-8") #Array de valores
+                except:
+                    data1="0,0,0,0,0,0,0,0"
                 data = data1.split(",")
                 print(data)
-                globals()['pressure'] = data[0] #OBTENER PRESION, INDICE 0
-                globals()['temperature'] = data[1] #OBTENER TEMPERATURA, INDICE 1
-                globals()['latitud'] = data[2]
-                globals()['longitud'] = data[3]
-                globals()['altitud'] = data[4] #OBTENER ALTITUD INDICE 4
-                globals()['co'] = data[5] #OBTENER CO, INDICE 5
-                globals()['met'] = data[6] #OBTENER METANO, INDICE 6
-                pkt = data[7]
-                canvas.itemconfig(presion, text = pressure+"hPa")
-                canvas.itemconfig(temp, text = temperature+"°C")
-                canvas.itemconfig(lat, text = latitud)
-                canvas.itemconfig(long, text = longitud)
-                canvas.itemconfig(alt, text = altitud)
-                canvas.itemconfig(emisionco, text = co)
-                canvas.itemconfig(emisionmet, text = met)
-                canvas.itemconfig(packetnum, text = pkt)
+                try:
+                    globals()['pressure'] = data[0] #OBTENER PRESION, INDICE 0
+                    globals()['temperature'] = data[1] #OBTENER TEMPERATURA, INDICE 1
+                    globals()['latitud'] = data[2]
+                    globals()['longitud'] = data[3]
+                    globals()['altitud'] = data[4] #OBTENER ALTITUD INDICE 4
+                    globals()['co'] = data[5] #OBTENER CO, INDICE 5
+                    globals()['met'] = data[6] #OBTENER METANO, INDICE 6
+                    pkt = data[7]
+                    canvas.itemconfig(presion, text = pressure+"hPa")
+                    canvas.itemconfig(temp, text = temperature+"°C")
+                    canvas.itemconfig(lat, text = latitud)
+                    canvas.itemconfig(long, text = longitud)
+                    canvas.itemconfig(alt, text = altitud+"m")
+                    canvas.itemconfig(emisionco, text = co+"ppm")
+                    canvas.itemconfig(emisionmet, text = met+"ppm")
+                    canvas.itemconfig(packetnum, text = pkt)
+                except:
+                    continue
             
                 time.sleep(0.5)
                 
-class TimeNow(threading.Thread):
+class Loop(threading.Thread):
     loop = True
 
     def __init__(self):
@@ -85,48 +118,46 @@ class TimeNow(threading.Thread):
         self.start()
         self.loop = True
 
-    def callback(self):
+    def stop(self):
         self.loop = False
-
+        sys.exit()
     def run(self):
-        # Read and record the data
+        
         while (self.loop):
             if True:
-                time.sleep(1)
-                canvas.itemconfig(hora, text = time.strftime("%H:%M:%S"))
+                try:
+                    time.sleep(1)
+                    canvas.itemconfig(hora, text = time.strftime("%H:%M:%S"))
+                    #Append valores de graficos
+                    tiemp.append(next(index))
+                    y1.append(pressure)
+                    y2.append(temperature)
+                    y3.append(int(co))
+                    y4.append(int(met))
+                except:
+                    self.stop()
 
 class downloadImages(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.start()
-
+    def stop():
+        sys.exit()
     def run(self):
         while(True):
             time.sleep(1)
-            if(float(altitud) >= 53):
+            if(float(altitud) >= 200):
                 print("Descargando Imagen...")
-                EEProcess(-29, -60).start()
+                downloadImage()
                 break
 
 plt.style.use('cyberpunk')
-
-
-tiemp = []
-y1 = []
-y2 = []
-y3 = []
-y4 = []
 
 index = count()
 
 #ANIMAR GRAFICOS
 def animate(i):
     graph1, graph2, graph3,graph4 = plt.figure(1).get_axes()
-    tiemp.append(next(index))
-    y1.append(pressure)
-    y2.append(temperature)
-    y3.append(int(co))
-    y4.append(int(met))
     plt.cla()
     graph1.plot(tiemp, y1, color = "#FE53BB")
     graph2.plot(tiemp, y2, color = "#08F7FE")
@@ -135,7 +166,8 @@ def animate(i):
     #SET Y AXIS TITLES
     graph1.set_ylabel("Presion")
     graph2.set_ylabel("Temperatura")
-    graph3.set_ylabel("CO")
+    graph3.set_ylabel("Monóxido CO")
+    graph4.set_ylabel("Metano CH4")
     
 #PONER LOS GRÁFICOS EN LA VENTANA GRAPHS
 def cargarGraficos(graphs1):
@@ -144,14 +176,14 @@ def cargarGraficos(graphs1):
     figtp.set_size_inches(14, 8) #tamaño para que abarque toda la pantalla
     canvas1 = FigureCanvasTkAgg(figtp, master = graphs1) #embed grafico en el canvas graphs
     canvas1.get_tk_widget().grid(column=0, row=1)
-    gs = figtp.add_gridspec(4, hspace=0.3)
-    gs.subplots(sharex = True)
+    gs = figtp.add_gridspec(4, hspace=0.3) #dividir en 4 subplots 
+    gs.subplots(sharex = True) #mismaS propiedades de x para todos
     for axis in figtp.get_axes():
         axis.get_xaxis().set_visible(False)
     plt.gca().autoscale()
     figtp.canvas.draw_idle()
 
-def openGraphWindow():
+def openGraphWindow(event):
     #GRAPHS WINDOW (Iniciar nueva ventana con TopLevel)
     graphs = Toplevel(window)
     graphs.geometry("1366x768")
@@ -166,13 +198,35 @@ def openGraphWindow():
         relief="ridge"
     )
     cargarGraficos(graphs)
-    
+
+def openImageWindow(event):
+    imagegui.imageWindow1.createWindow(window)
+
 #MAIN WINDOW
 window = Tk()
 window.geometry("1366x768")
 window.configure(bg="#FFFFFF")
 
+#PORT WINDOW
+
+combo = NULL
+comboarr = StringVar()
+
+def showComboBox(event):
+    #COMBO VISIBLE
+    combo = ttk.Combobox(window, textvariable=comboarr)
+    combo['values'] = ("COM5","COM7","COM6","COM11")
+    combo.bind('<<ComboboxSelected>>',setComboBoxSelected)
+    combo.place(x=820, y=30)
+
+    
+def setComboBoxSelected(event):
+    
+    globals()['ser'] = serial.Serial(str(comboarr.get()), 9600, timeout=1)
+    
+
 ani=FuncAnimation(plt.figure(1), animate, 1000)
+
 #CANVAS DE LA VENTANA PRINCIPAL
 canvas = Canvas(
     window,
@@ -187,13 +241,6 @@ canvas = Canvas(
 canvas.place(x=0, y=0)
 
 
-def functest(event):
-    print("asd")
-
-global isNotPlotted, grafico3, isLabelOn
-isNotPlotted = True
-isLabelOn = False
-grafico3 = NULL
 def animate2(i):
 
     #IF NECESARIO PARA NO GENERAR GRAFICOS INFINITOS
@@ -211,19 +258,20 @@ def animate2(i):
         globals()['grafico3'].legend(loc = "upper right")
         globals()['isLabelOn'] = True
         
-    
-    
-    
-#GRAFICO EMBED
+#GRAFICO EMBED EN VENTANA PRINCIPAL
 grafico = plt.figure(2)
 grafico.set_size_inches(4.8,3.1)
 graficopt = FigureCanvasTkAgg(grafico, master = window) #embed grafico en el canvas graphs
 graficopt.get_tk_widget().grid(column=0, row=1)
+for axis in grafico.get_axes():
+    axis.get_xaxis().set_visible(False)
+    
 ani2 = FuncAnimation(plt.figure(2), animate2, 1000)
 
-graficopt.get_tk_widget().place(x=810, y=430)
+graficopt.get_tk_widget().place(x=810, y=430) # TODO CHECK THIS MAT <-----------------
+grafico.canvas.draw_idle()
 
-canvas.create_rectangle(
+windowBg=canvas.create_rectangle(
     0.0,
     0.0,
     1366.0,
@@ -256,12 +304,17 @@ canvas.create_rectangle(
     fill="#1FB8BD",
     outline="")
 
-image_image_1 = PhotoImage(
-    file=relative_to_assets("image_1.png"))
+global ndvi    
+ndvi = NULL
+try:
+    globals()["ndvi"] = PhotoImage(file=relative_to_assets("convertedndvi.png"))
+except:
+    globals()["ndvi"]=PhotoImage(file=relative_to_assets("loadingimage.png"))
+
 image_1 = canvas.create_image(
     1066.0,
-    276.0,
-    image=image_image_1
+    265.0,
+    image=ndvi
 )
 #BOTON GRAPH
 graphimg = PhotoImage(file=relative_to_assets("image_3.png"))
@@ -284,8 +337,12 @@ puerto_button = canvas.create_image(
     40,
     image=puertoimg
 )
+
+
 #BINDEAR BOTONES A SUS RESP. FUNCIONES
-canvas.tag_bind(graph_button, "<Button-1>", openGraphWindow())
+canvas.tag_bind(graph_button, "<Button-1>", openGraphWindow)
+canvas.tag_bind(puerto_button, "<Button-1>", showComboBox)
+canvas.tag_bind(sat_button, "<Button-1>", openImageWindow)
 canvas.create_rectangle(
     26.0,
     136.0,
@@ -381,23 +438,6 @@ canvas.create_text(
     font=("HelveticaRounded-Bold", 28 * -1)
 )
 
-canvas.create_text(
-    446.0,
-    625.0,
-    anchor="nw",
-    text="Eje X:",
-    fill="#FFFFFF",
-    font=("HelveticaRounded-Bold", 28 * -1)
-)
-
-canvas.create_text(
-    446.0,
-    673.0,
-    anchor="nw",
-    text="Eje Z:",
-    fill="#FFFFFF",
-    font=("HelveticaRounded-Bold", 28 * -1)
-)
 
 canvas.create_rectangle(
     26.0,
@@ -491,7 +531,7 @@ canvas.create_text(
     446.0,
     568.0,
     anchor="nw",
-    text="Aceleracion",
+    text="Estado",
     fill="#00E4D6",
     font=("HelveticaRounded-Bold", 32 * -1)
 )
@@ -510,7 +550,7 @@ buenaveg = canvas.create_text(
     660.0,
     449.0,
     anchor="nw",
-    text="70%",
+    text="N/D",
     fill="#FFFFFF",
     font=("Inter Medium", 28 * -1)
 )
@@ -519,28 +559,62 @@ malaveg = canvas.create_text(
     660.0,
     490.0,
     anchor="nw",
-    text="30%",
+    text="N/D",
     fill="#FFFFFF",
     font=("Inter Medium", 28 * -1)
 )
 
-aceleracionx = canvas.create_text(
-    570.0,
+estado = canvas.create_text(
+    446.0,
     627.0,
     anchor="nw",
-    text="10 m/seg2",
+    text="x",
     fill="#FFFFFF",
-    font=("Inter Medium", 28 * -1)
+    font=("HelveticaRounded-Bold", 28 * -1)
 )
+downimg= PhotoImage(file=relative_to_assets("image_6.png"))
+succimg=PhotoImage(file=relative_to_assets("image_7.png"))
+down_button = canvas.create_image(
+    600,
+    700,
+    image=downimg
+)
+#Check image disponibility
+if(exists("multi_bands.tif")):
+    canvas.itemconfig(estado,text="Imagen obtenida!")
+    canvas.itemconfig(down_button, image=succimg)
+else:
+    canvas.itemconfig(estado,text="Imagen no obtenida...")
+    
 
-aceleraciony= canvas.create_text(
-    570.0,
-    673.0,
-    anchor="nw",
-    text="3 m/seg2",
-    fill="#FFFFFF",
-    font=("Inter Medium", 28 * -1)
-)
+def calculateVeg():
+    vegPercent = VegetationCalculation.getVegetationPercentage()
+    canvas.itemconfig(buenaveg, text=vegPercent + "%")
+    canvas.itemconfig(malaveg, text = str((100-float(vegPercent))) + "%")
+
+try:
+    calculateVeg()
+except:
+    ""
+
+def downloadImage():
+    canvas.itemconfig(estado,text="Obteniendo imagen...")
+    EEProcess(float(lat), float(long)).start()
+    canvas.itemconfig(estado,text="Imagen obtenida!")
+    canvas.itemconfig(down_button, image=succimg)
+    bandprocessing.processImages()
+    imagegui.imageWindow1.updateImages()
+    calculateVeg()
+    globals()["ndvi"] = PhotoImage(file=relative_to_assets("convertedndvi.png"))
+    canvas.itemconfig(image_1,image=globals()["ndvi"])
+    canvas.update()
+
+def startDownload(event):
+    threaddown.start()
+    
+
+threaddown = threading.Thread(target=downloadImage) #Empezar thread para descargar la imagen
+canvas.tag_bind(down_button, "<Button-1>", startDownload)
 
 lat = canvas.create_text(
     205.0,
@@ -570,7 +644,7 @@ hora = canvas.create_text(
 )
 
 packetnum = canvas.create_text(
-    697.0,
+    690.0,
     258.0,
     anchor="nw",
     text="00",
@@ -592,15 +666,6 @@ emisionmet = canvas.create_text(
     490.0,
     anchor="nw",
     text="00",
-    fill="#FFFFFF",
-    font=("Inter Medium", 28 * -1)
-)
-
-tiempo = canvas.create_text(
-    652.0,
-    152.0,
-    anchor="nw",
-    text="01:00",
     fill="#FFFFFF",
     font=("Inter Medium", 28 * -1)
 )
@@ -633,14 +698,24 @@ alt = canvas.create_text(
 )
 
 window.resizable(True, True)
+global serialRead,loopThings,img
+
 def leerSerial():
-	app = ReadSerial()
+	globals()['serialRead'] = ReadSerial()
 def leerTiempo():
-    tiempo = TimeNow()
+    globals()['loopThings'] = Loop()
 def downImage():
-    img = downloadImages()
+    globals()['img'] = downloadImages()
+def onClose():
+    window.destroy()
+    serialRead.stop()
+    loopThings.stop()
+    img.stop()
+    
+
 window.after(0, leerSerial())
 window.after(0, leerTiempo())
 #window.after(0, cargarGraficos())
 window.after(0, downImage())
+window.protocol("WM_DELETE_WINDOW", onClose)
 window.mainloop()
