@@ -8,9 +8,13 @@ class Resize:
 
     def resizeImage(self,path):
         img = Image.open(path)
+
         wpercent = (self.base/float(img.size[0]))
+
         hsize = int((float(img.size[1])*float(wpercent)))
-        img = img.resize((self.base,hsize), Image.ANTIALIAS)
+
+        img = img.resize((self.base,hsize), Image.ANTIALIAS) #Image.ANTIALIAS
+
         if(path=='ndvi.png'):
             img.save("build/assets/" +"converted"+path)
         img.save("converted"+path)

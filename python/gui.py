@@ -173,6 +173,7 @@ def animate(i):
 def cargarGraficos(graphs1):
 
     figtp = plt.figure(1) #get current figure
+    figtp.set_facecolor('#30394A') #color de fondo
     figtp.set_size_inches(14, 8) #tamaño para que abarque toda la pantalla
     canvas1 = FigureCanvasTkAgg(figtp, master = graphs1) #embed grafico en el canvas graphs
     canvas1.get_tk_widget().grid(column=0, row=1)
@@ -182,6 +183,29 @@ def cargarGraficos(graphs1):
         axis.get_xaxis().set_visible(False)
     plt.gca().autoscale()
     figtp.canvas.draw_idle()
+
+
+def downloadImage():
+    canvas.itemconfig(estado,text="Obteniendo imagen...")
+
+    EEProcess(float(lat), float(long)).start()
+
+    canvas.itemconfig(estado,text="Imagen obtenida!")
+    canvas.itemconfig(down_button, image=succimg)
+
+    bandprocessing.processImages()
+    imagegui.imageWindow1.updateImages()
+
+    calculateVeg()
+    
+    globals()["ndvi"] = PhotoImage(file=relative_to_assets("convertedndvi.png"))
+    canvas.itemconfig(image_1,image=globals()["ndvi"])
+    canvas.update()
+
+def startDownload(event):
+    threaddown.start()
+    
+threaddown = threading.Thread(target=downloadImage) #Asignar thread a downloadImage
 
 def openGraphWindow(event):
     #GRAPHS WINDOW (Iniciar nueva ventana con TopLevel)
@@ -248,11 +272,11 @@ def animate2(i):
         globals()['grafico3'] = plt.figure(2).subplots()
         globals()['isNotPlotted'] = False
 
-    globals()['grafico3'].set_facecolor("#2A3444") #COLOR DE GRAFICO
+    globals()['grafico3'].set_facecolor("#30394A") #COLOR DE GRAFICO
 
     globals()['grafico3'].plot(tiemp,y1, color = "#FE53BB", label = "Pres.")
     globals()['grafico3'].plot(tiemp,y2, color = "#08F7FE", label = "Temp.")
-
+    globals()['grafico3'].set_facecolor("#30394A") #COLOR DE GRAFICO
     #Poner el label una sola vez y que no se repita infinitamente
     if not (isLabelOn):
         globals()['grafico3'].legend(loc = "upper right")
@@ -597,23 +621,6 @@ try:
 except:
     ""
 
-def downloadImage():
-    canvas.itemconfig(estado,text="Obteniendo imagen...")
-    EEProcess(float(lat), float(long)).start()
-    canvas.itemconfig(estado,text="Imagen obtenida!")
-    canvas.itemconfig(down_button, image=succimg)
-    bandprocessing.processImages()
-    imagegui.imageWindow1.updateImages()
-    calculateVeg()
-    globals()["ndvi"] = PhotoImage(file=relative_to_assets("convertedndvi.png"))
-    canvas.itemconfig(image_1,image=globals()["ndvi"])
-    canvas.update()
-
-def startDownload(event):
-    threaddown.start()
-    
-
-threaddown = threading.Thread(target=downloadImage) #Empezar thread para descargar la imagen
 canvas.tag_bind(down_button, "<Button-1>", startDownload)
 
 lat = canvas.create_text(
